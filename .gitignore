@@ -1,0 +1,6 @@
+*.csv
+*.txt
+.vscode/
+config-cache/
+config-cache-json/
+localization-cache/

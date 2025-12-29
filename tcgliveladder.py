@@ -6,11 +6,14 @@ from pathlib import Path
 import re
 
 LOCALIZATION_DIRECTORY = 'localization-cache'
-LADDER_FILES_FOLDER = 'config-cache'
+CONFIG_CACHE_FOLDER = 'config-cache'
+CARD_DATA_FOLDER = 'config-cache-json'
 LADDER_FILES_GLOB = 'season_[0-9]*.json'
+LOCALIZATION_LANG = 'en'
+CARD_DATABASE_FILES_FORMATTER = 'card-database-{}_0_{}_0.0_contents.json'
 ITEMSET_DB_FILE = 'config-cache/item-set-database_0.0.json'
 
-OUTPUT_FILE = "ladder_seasons.txt"
+LADDER_OUTPUT_FILE = "ladder_seasons.txt"
 
 AVATAR_ITEMS_LAZY_COMPARISON = {
     'sh': 'Shoe',
@@ -19,11 +22,10 @@ AVATAR_ITEMS_LAZY_COMPARISON = {
     'ha': 'Hat'
 }
 
-def sanitize_set_name_from_item(booster_name):
-    print(booster_name)
+def sanitize_set_name_from_item(booster_name: str):
     return re.sub(r'^.*?<i>(.+?—)?(.+?)<\/i> (.+?)$', r'\2', booster_name)
 
-def sanitize_item_type_from_item(booster_name):
+def sanitize_item_type_from_item(booster_name: str):
     return re.sub(r'^.*?<i>(.+?—)?(.+?)<\/i> (.+?)$', r'\3', booster_name).replace('Collector\'s', 'Collector')
 
 def get_localization():
@@ -38,37 +40,56 @@ def get_localization():
                         localization = {**localization, **json.load(f)}
     return localization
 
+def get_card_data_from_folder(card_id: str, localization):
+    card_set = re.sub(r'_.+?$', '', card_id)
+    file_path = Path(CARD_DATA_FOLDER, CARD_DATABASE_FILES_FORMATTER.format(card_set, LOCALIZATION_LANG))
+    if file_path.is_file():
+        with file_path.open("r", encoding="utf-8") as f:
+            contents = json.load(f)
+            return {
+                "name": contents[card_id]["EN Card Name"],
+                "type": contents[card_id]["EN Format"],
+                "pokemonType": contents[card_id]["EN Type"],
+                "number": contents[card_id]["CompSea Card Number"],
+                "setCount": contents[card_id]["EN Expansion Denominator"],
+                "setName": sanitize_set_name_from_item(localization['booster-'+card_set.replace('a', '')])
+            }
+    else:
+        return card_id
+
 def get_itemset_data():
     print('Fetching itemset data...')
     with Path(ITEMSET_DB_FILE).open("r", encoding="utf-8") as f:
-        # print(json.loads(json.load(f)['keys']['itemsets']['contentString']))
         return json.loads(json.load(f)['keys']['itemsets']['contentString'])
 
 def get_ladder_data():
     print('Fetching ladder data...')
     ladder_data_list = []
-    for ladder_file in glob.glob(f"{LADDER_FILES_FOLDER}\\{LADDER_FILES_GLOB}"):
-        # print(ladder_file)
+    for ladder_file in glob.glob(f"{CONFIG_CACHE_FOLDER}\\{LADDER_FILES_GLOB}"):
         if Path(ladder_file).is_file():
             print('Getting ' + ladder_file)
             with Path(ladder_file).open("r", encoding="utf-8") as f:
                 ladder_data = json.load(f)['keys']  
-                # print(next(iter(ladder_data)))
                 ladder_data_list.append(json.loads(ladder_data[next(iter(ladder_data))]['contentString']))
 
     deduplicated_list = {d['seasonID']: d for d in ladder_data_list}.values()
     return list(deduplicated_list)
 
+def convert_card_data_into_mediawiki_link(card_data):
+    if type(card_data) == 'str': return card_data
+    else:
+        return f"[[{card_data['name']} ({card_data['setName']} {card_data['number'].lstrip('0')})]]"
+
 # expects an itemSet item from cache_config
 def convert_itemset(item, localization):
-    # print(item)
     match item['itemType']:
         case 0:
             return f"{item['amount']}× Coins"
         case 1:
             return f"{item['amount']}× Crystals"
         case 2:
-            return f"{item['amount']}× {item['clientId']}" #card, change to function
+            card_info = get_card_data_from_folder(item['clientId'], localization)
+            return f"{item['amount']}× {convert_card_data_into_mediawiki_link(card_info)}"
         case 3:
             return f"{item['amount']}× {{{{TCG|{sanitize_set_name_from_item(localization[item['clientId']])}}}}} {sanitize_item_type_from_item(localization[item['clientId']])}"
         case 4:
@@ -89,7 +110,6 @@ def convert_itemset(item, localization):
             return f"{item['amount']} × {localization[item['clientId']] or item['clientId']}"
 
 def itemset_to_mediawiki (itemset, localization):
-    # print(itemset)
     sanitized_items = []
     unique_avatar_items = {}
     if itemset:
@@ -108,12 +128,10 @@ def itemset_to_mediawiki (itemset, localization):
             avatar_item_index = sanitized_items.index(key)
             sanitized_items[avatar_item_index] += '{{tt|*|Male}}' if '_m_' in value else '{{tt|*|Female}}'
 
-        # {{tt|*|Male}} {{tt|*|Female}}
-        # item_list = set(convert_itemset(item, localization) for item in itemset)
         return "<br>".join(sanitized_items)
     else: return ''
 
-def convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_to_fetch, next_start_date):
+def convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_to_fetch: list[str], next_start_date: str):
     TABLE_ROW_TEMPLATE = """|- style="background: #FFF;"
 |rowspan="2"| {0}
 |rowspan="2"| {1}
@@ -147,8 +165,6 @@ def convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_
     fourth_league_end_items = itemset_data[season_items[tiers_to_fetch[3]][1]['prizeID']]['itemSet']
     fifth_league_end_items = itemset_data[season_items[tiers_to_fetch[4]][1]['prizeID']]['itemSet']
     sixth_league_end_items = itemset_data[season_items[tiers_to_fetch[5]][1]['prizeID']]['itemSet']
-    # print(row['seasonTitleDate'])
-    # print(quick_league_items)
 
     return (TABLE_ROW_TEMPLATE.format(
         datetime.fromisoformat(next_start_date or row['seasonTitleDate'].replace('z', '')).strftime("%B %d, %Y"),
@@ -167,7 +183,7 @@ def convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_
         itemset_to_mediawiki(sixth_league_end_items, localization),
     ).replace('<i>', '').replace('</i>', ''))
 
-def write_ladder_data_to_mediawiki_format(ladder_data_list, itemset_data, localization):
+def write_ladder_data_to_mediawiki_format(ladder_data_list, itemset_data, localization, skip_unused_seasons = True):
     TABLE_HEADER_WITH_ARCEUS_LEAGUE = """{| class="roundy" style="background: #{{bulba color}}; padding: 2px; text-align: center;"
 |-
 ! Begin Date
@@ -209,17 +225,18 @@ def write_ladder_data_to_mediawiki_format(ladder_data_list, itemset_data, locali
     tiers_with_nest_league = ['nest_league', 'quick_league', 'poke_league', 'great_league', 'ultra_league', 'master_league']
     next_start_date = ''
 
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
-        f.write('\n===Before March 2025===\n\n')
+    with open(LADDER_OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write('==List of Rewards==\n\n===Before March 2025===\n\n')
         f.write(TABLE_HEADER_WITH_ARCEUS_LEAGUE)
 
         for row in seasons_with_arceus_league:
-            f.write(convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_with_arceus_league, next_start_date))
-            next_start_date = str(datetime.fromisoformat(row['endDate'].replace('z', '')) + timedelta(days=1))
+            if not skip_unused_seasons or row['endDate'] > '2022-02-23':
+                f.write(convert_ladder_data_to_mediawiki_row(row, itemset_data, localization, tiers_with_arceus_league, next_start_date))
+                next_start_date = str(datetime.fromisoformat(row['endDate'].replace('z', '')) + timedelta(days=1))
         
         f.write(TABLE_FOOTER)
 
-    with open(OUTPUT_FILE, "a", encoding="utf-8") as f:
+    with open(LADDER_OUTPUT_FILE, "a", encoding="utf-8") as f:
         f.write('\n\n===After March 2025===\n\n')
         f.write(TABLE_HEADER_WITH_NEST_LEAGUE)
 
@@ -232,7 +249,6 @@ def write_ladder_data_to_mediawiki_format(ladder_data_list, itemset_data, locali
 
 if __name__ == "__main__":
     ladder_data = get_ladder_data()
-    # print(ladder_data)
     itemset_data = get_itemset_data()
     localization = get_localization()
-    write_ladder_data_to_mediawiki_format(ladder_data, itemset_data, localization)
+    write_ladder_data_to_mediawiki_format(ladder_data, itemset_data, localization, skip_unused_seasons = True)
