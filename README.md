@@ -1,17 +1,25 @@
 # TCGLiveUtils
-Extracts data from Pokémon TCG Live's files downloaded in your machine and formats the content into json or mediawiki-based tables.
+Extracts data from Pokémon TCG Live's files downloaded in your machine and formats the content into csv, json or mediawiki-based tables.
 
 ## Setup
 
-1. Install Python if you don't have it already
+Steps 1-3 are not required to see avatar and gameplay content
 
-2. Copy the `config-cache` and `localization-cache` folders from `%localappdata%low\pokemon\Pokemon TCG Live` into this directory
+1. Extract TCG Live's `DataTableCustomFormatter` class from `Managed\CardDatabase.DataAccess.dll` into the `TCGLiveBinaryExtractor` project, then compile it
 
-3. Running their scripts into a terminal such as `python .\tcgliveladder.py` will create a default generated file
+5. Copy the `config-cache` folder from `%localappdata%low\pokemon\Pokemon TCG Live` into `TCGLiveBinaryExtractor`'s compiled project directory
+
+3. Run `TCGLiveBinaryExtractor`, and copy the output folder to the parent folder if not already there
+
+4. Install Python if you don't have it already
+
+5. Copy the `config-cache` and `localization-cache` folders from `%localappdata%low\pokemon\Pokemon TCG Live` into the parent folder
+
+6. Running the scripts into a terminal such as `python .\tcgliveladder.py` will create a default generated file
 
 ## Todo
 - Typings
-- Include card data utils
+- Bypass DataTable extractor dependency
 - Save outputs in a centralized folder
 - Fix localization for specific langs
 
