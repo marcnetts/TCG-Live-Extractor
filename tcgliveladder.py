@@ -80,7 +80,7 @@ def get_ladder_data():
     return list(deduplicated_list)
 
 def convert_card_data_into_mediawiki_link(card_data):
-    if type(card_data) == 'str': return card_data
+    if type(card_data) == str: return card_data
     else:
         return f"[[{card_data['name']} ({card_data['setName']} {card_data['number'].lstrip('0')})]]"
 
