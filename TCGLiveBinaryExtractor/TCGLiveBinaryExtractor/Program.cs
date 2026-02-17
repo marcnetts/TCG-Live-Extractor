@@ -45,7 +45,7 @@ class Program
             return;
         }
 
-        var files = Directory.GetFiles(inputDir, "card-database-*_0_en_0.0.json");
+        var files = Directory.GetFiles(inputDir, "card-database-*_*_en_0.0.json");
 
         if (files.Length == 0)
         {

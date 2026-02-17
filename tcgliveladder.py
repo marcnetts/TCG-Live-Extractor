@@ -10,7 +10,7 @@ CONFIG_CACHE_FOLDER = 'config-cache'
 CARD_DATA_FOLDER = 'config-cache-json'
 LADDER_FILES_GLOB = 'season_[0-9]*.json'
 LOCALIZATION_LANG = 'en'
-CARD_DATABASE_FILES_FORMATTER = 'card-database-{}_0_{}_0.0_contents.json'
+CARD_DATABASE_FILES_FORMATTER = 'card-database-{}_*_{}_0.0_contents.json'
 ITEMSET_DB_FILE = 'config-cache/item-set-database_0.0.json'
 
 LADDER_OUTPUT_FILE = "ladder_seasons.txt"
@@ -42,9 +42,13 @@ def get_localization():
 
 def get_card_data_from_folder(card_id: str, localization):
     card_set = re.sub(r'_.+?$', '', card_id)
-    file_path = Path(CARD_DATA_FOLDER, CARD_DATABASE_FILES_FORMATTER.format(card_set, LOCALIZATION_LANG))
-    if file_path.is_file():
-        with file_path.open("r", encoding="utf-8") as f:
+    file_path = Path(CARD_DATA_FOLDER).glob(CARD_DATABASE_FILES_FORMATTER.format(card_set, LOCALIZATION_LANG))
+    if file_path: 
+        *_, last_file = file_path
+    else: last_file = Path()
+
+    if last_file.is_file():
+        with last_file.open("r", encoding="utf-8") as f:
             contents = json.load(f)
             return {
                 "name": contents[card_id]["EN Card Name"],
